@@ -7,8 +7,8 @@ HDR = src/constraints.h src/trie.h src/baselines.h src/solver.h src/game.h
 
 all: solver tests bench
 
-solver: $(SRC) src/main.cpp $(HDR)
-	$(CXX) $(FAST) $(SRC) src/main.cpp -o solver
+solver: $(SRC) src/main.cpp src/tui.cpp $(HDR) src/tui.h
+	$(CXX) $(FAST) $(SRC) src/tui.cpp src/main.cpp -o solver
 
 tests: $(SRC) tests/tests.cpp $(HDR)
 	$(CXX) $(DEBUG) $(SRC) tests/tests.cpp -o run_tests
