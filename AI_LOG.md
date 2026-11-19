@@ -85,3 +85,36 @@ report's AI-usage section is accurate and Tony knows what to review and be able 
   and are mounted at `/` from `./web`; app.js passes `node --check`.
 - ACTION FOR TONY (in WSL): `./server`, open http://localhost:8080 in the Windows browser,
   solve a real Wordle on the Solve tab, run Auto play, and try each Race size preset.
+
+## 2026-11-19 - Task 9: Docs and final check
+
+### Final review list: every new file and what Tony should be able to explain
+
+New source (Kiro-generated, Tony should be able to explain every line):
+- `src/game.h` / `src/game.cpp` - the `Game` struct is a history of (guess, feedback)
+  pairs; `buildConstraints` replays them into a fresh `Constraints`; `isValidWord` /
+  `isValidFeedback` are the moved validators. No STL containers, just arrays.
+- `src/tui.h` / `src/tui.cpp` - ANSI escape codes (`\033[...m`) for colored tiles, the
+  `--no-color` ASCII fallback, and the `int state[26]` keyboard ranking (g>y>b>unused).
+- `src/server.cpp` - cpp-httplib routes map URL paths to handler functions; query strings
+  carry the guess history; JSON is built by string concatenation (no library); the global
+  trie is read-only after startup so request threads can share it.
+- `web/index.html` - tabs, the 6x5 grid, the on-screen keyboard.
+- `web/style.css` - CSS grid board, Wordle tile colors, flip animation, race bars.
+- `web/app.js` - fetch/async-await to call the API, DOM updates, tile-color cycling,
+  setTimeout row-by-row reveal, proportional race bars.
+- `third_party/httplib.h` - cpp-httplib v0.67.0, MIT, not written by Tony (documented in
+  README and here; used only for the HTTP server).
+
+Changed files:
+- `src/main.cpp` rewritten to use `Game` + `tui`; `tests/tests.cpp` gained `testGame()`;
+  `Makefile`, `.gitignore`, `README.md` updated.
+
+### Final check results
+- `make clean && make` builds solver, server, run_tests, run_bench with ZERO warnings.
+- `./run_tests` -> 41 passed, 0 failed.
+- `./run_bench` still runs and prints its CSV sections.
+
+### Still to do in WSL (could not run in the network-isolated build sandbox)
+- Task 6: open each `/api/...` URL and confirm the JSON.
+- Task 8: load http://localhost:8080 in the Windows browser and solve a real Wordle on each tab.
