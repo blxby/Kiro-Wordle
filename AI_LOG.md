@@ -52,3 +52,16 @@ report's AI-usage section is accurate and Tony knows what to review and be able 
   hit over HTTP here. The server compiles with zero warnings, loads the trie, and the pure
   parse/JSON helpers were unit-checked offline. Live endpoint testing is the WSL checkpoint
   (Task 6) in Tony's environment.
+
+## 2026-11-19 - Task 6: Checkpoint (server endpoints)
+- Cannot be fully completed in this sandbox: the environment is network-isolated and the
+  server cannot bind a listening socket, so the `/api/...` URLs were not opened in a browser
+  here. Verified instead: `make server` builds with zero warnings, `./server` loads 14855
+  words and 27842 trie nodes and reaches `svr.listen`, and the pure request helpers
+  (`splitCommas`, `parseGame`, `jsonString`) pass an offline check.
+- ACTION FOR TONY (in WSL): run `./server`, then open these in the browser and confirm the JSON:
+  - http://localhost:8080/api/info
+  - http://localhost:8080/api/feedback?guess=crane&answer=slate
+  - http://localhost:8080/api/solve?guesses=crane&feedback=bbbbb
+  - http://localhost:8080/api/autoplay
+  - http://localhost:8080/api/race?size=50000
