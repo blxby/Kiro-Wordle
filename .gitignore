@@ -68,5 +68,6 @@ Testing/
 
 # Project binaries
 solver
+server
 run_tests
 run_bench

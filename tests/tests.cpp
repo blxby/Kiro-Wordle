@@ -5,6 +5,7 @@
 #include "../src/trie.h"
 #include "../src/baselines.h"
 #include "../src/solver.h"
+#include "../src/game.h"
 
 using namespace std;
 
@@ -83,6 +84,65 @@ void testConstraintsByHand() {
     int bruteCount = bruteForce(small, 6, c, out2);
     check(trieCount == 3, "small trie finds hello, jello, cello");
     check(trieCount == bruteCount, "small trie count == brute force count");
+}
+
+// Tests for the shared game helpers used by both front ends
+void testGame() {
+    // isValidWord: exactly 5 lowercase letters
+    check(isValidWord("crane"), "crane is a valid word");
+    check(!isValidWord("Crane"), "Crane rejected (uppercase)");
+    check(!isValidWord("cran"), "cran rejected (too short)");
+    check(!isValidWord("cranes"), "cranes rejected (too long)");
+    check(!isValidWord("cra1e"), "cra1e rejected (digit)");
+
+    // isValidFeedback: exactly 5 of g / y / b
+    check(isValidFeedback("gybbg"), "gybbg is valid feedback");
+    check(isValidFeedback("ggggg"), "ggggg is valid feedback");
+    check(!isValidFeedback("gyba"), "gyba rejected (too short)");
+    check(!isValidFeedback("gybbz"), "gybbz rejected (bad letter)");
+    check(!isValidFeedback("GYBBG"), "GYBBG rejected (uppercase)");
+
+    // addTurn / undoTurn keep an accurate count
+    Game g;
+    resetGame(g);
+    check(g.turns == 0, "reset leaves zero turns");
+    check(addTurn(g, "lolly", "byggb"), "addTurn succeeds");
+    check(g.turns == 1, "one turn after addTurn");
+    addTurn(g, "slate", "bbbbb");
+    check(g.turns == 2, "two turns after second addTurn");
+    undoTurn(g);
+    check(g.turns == 1, "one turn after undo");
+    undoTurn(g);
+    undoTurn(g);   // undo on empty is a no-op
+    check(g.turns == 0, "undo stops at zero");
+
+    // buildConstraints from a Game must match calling update directly
+    Game g2;
+    resetGame(g2);
+    addTurn(g2, "lolly", "byggb");
+    Constraints fromGame;
+    buildConstraints(g2, fromGame);
+    Constraints direct;
+    direct.reset();
+    direct.update("lolly", "byggb");
+    // same decision on a handful of words means the same constraints
+    check(fromGame.matches("hello") == direct.matches("hello"), "buildConstraints matches hello like update");
+    check(fromGame.matches("jello") == direct.matches("jello"), "buildConstraints matches jello like update");
+    check(fromGame.matches("llama") == direct.matches("llama"), "buildConstraints matches llama like update");
+
+    // buildConstraints + search gives the same count as updating by hand
+    string small[6] = {"hello", "jello", "cello", "hollo", "lolly", "llama"};
+    Trie t;
+    for (int i = 0; i < 6; i++) {
+        t.insert(small[i]);
+    }
+    string outA[6];
+    string outB[6];
+    long long va = 0;
+    long long vb = 0;
+    int countFromGame = t.search(fromGame, outA, va);
+    int countDirect = t.search(direct, outB, vb);
+    check(countFromGame == countDirect, "buildConstraints + search == update + search");
 }
 
 // Play many random games and check all three methods give the same set every turn
@@ -173,6 +233,7 @@ int main() {
     testInsertLookup();
     testFeedback();
     testConstraintsByHand();
+    testGame();
 
     int n = 0;
     string* words = loadWords("data/words.txt", n);
