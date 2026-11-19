@@ -78,3 +78,10 @@ report's AI-usage section is accurate and Tony knows what to review and be able 
   setTimeout at first use. JSON field names in app.js match the server exactly
   (count, candidates, suggestion, trie_us, nodes, turns[].left/us, size, synthetic, work).
   `node --check` confirms app.js parses; full UI test is the browser checkpoint (Task 8) in WSL.
+
+## 2026-11-19 - Task 8: Checkpoint (web page in browser)
+- Deferred to WSL for the same reason as Task 6: this sandbox has no network and the server
+  cannot bind a socket, so the page could not be loaded in a browser here. Static files build
+  and are mounted at `/` from `./web`; app.js passes `node --check`.
+- ACTION FOR TONY (in WSL): `./server`, open http://localhost:8080 in the Windows browser,
+  solve a real Wordle on the Solve tab, run Auto play, and try each Race size preset.
