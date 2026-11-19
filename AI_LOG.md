@@ -31,3 +31,8 @@ report's AI-usage section is accurate and Tony knows what to review and be able 
   removed (now `isValidWord`/`isValidFeedback` in game.cpp).
 - Changes Tony should review: `<thread>` include for the pause; incremental filter is timed
   on a fresh full-dictionary copy because it has no previous turn in a one-shot race.
+
+## 2026-11-19 - Task 4: Checkpoint (terminal UI)
+- `make solver` builds with zero warnings. Solved a real Wordle through interactive mode
+  (words left narrowed 14855 -> 664 -> 1 -> solved in 3 guesses). Auto play and race modes
+  verified with piped input. Nothing to review beyond earlier tasks.
