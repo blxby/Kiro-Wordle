@@ -2,8 +2,8 @@ CXX = g++
 DEBUG = -std=c++17 -Wall -g
 FAST = -std=c++17 -Wall -O2
 
-SRC = src/constraints.cpp src/trie.cpp src/baselines.cpp src/solver.cpp
-HDR = src/constraints.h src/trie.h src/baselines.h src/solver.h
+SRC = src/constraints.cpp src/trie.cpp src/baselines.cpp src/solver.cpp src/game.cpp
+HDR = src/constraints.h src/trie.h src/baselines.h src/solver.h src/game.h
 
 all: solver tests bench
 
