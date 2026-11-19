@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wordle Solver</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Wordle Solver</h1>
+    <p id="info">loading...</p>
+  </header>
+
+  <!-- three tabs: one page, JavaScript shows one panel at a time -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="solve">Solve</button>
+    <button class="tab" data-tab="autoplay">Auto play</button>
+    <button class="tab" data-tab="race">Race</button>
+  </nav>
+
+  <!-- Solve panel -->
+  <section id="panel-solve" class="panel active">
+    <p class="hint">
+      Type a 5-letter guess (or use the suggestion), click each tile to cycle its
+      color grey &rarr; yellow &rarr; green, then Submit.
+    </p>
+    <div id="grid" class="grid"></div>
+
+    <div id="keyboard" class="keyboard"></div>
+
+    <div class="controls">
+      <button id="btn-suggestion">Use suggestion</button>
+      <button id="btn-submit">Submit</button>
+      <button id="btn-undo">Undo</button>
+      <button id="btn-new">New game</button>
+    </div>
+
+    <div class="stats" id="solve-stats"></div>
+    <div class="candidates" id="candidates"></div>
+  </section>
+
+  <!-- Auto play panel -->
+  <section id="panel-autoplay" class="panel">
+    <p class="hint">Watch the solver play a full game. Leave the answer blank for a random one.</p>
+    <div class="controls">
+      <input id="auto-answer" maxlength="5" placeholder="answer (optional)">
+      <button id="btn-auto">Play</button>
+    </div>
+    <div id="auto-grid" class="grid"></div>
+    <div class="stats" id="auto-stats"></div>
+  </section>
+
+  <!-- Race panel -->
+  <section id="panel-race" class="panel">
+    <p class="hint">Race the trie against brute force and incremental filter on one query.</p>
+    <div class="controls">
+      <button class="size" data-size="1000">1,000</button>
+      <button class="size" data-size="14855">14,855 real</button>
+      <button class="size" data-size="50000">50,000</button>
+      <button class="size" data-size="100000">100,000</button>
+    </div>
+    <div class="stats" id="race-info"></div>
+    <div id="race-bars" class="bars"></div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
