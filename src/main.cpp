@@ -1,12 +1,15 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <thread>
 #include <cstdlib>
 #include <ctime>
 #include "constraints.h"
 #include "trie.h"
 #include "baselines.h"
 #include "solver.h"
+#include "game.h"
+#include "tui.h"
 
 using namespace std;
 using Clock = chrono::high_resolution_clock;
@@ -16,51 +19,49 @@ double microsBetween(Clock::time_point start, Clock::time_point end) {
     return chrono::duration<double, micro>(end - start).count();
 }
 
-// true if s is exactly 5 lowercase letters
-bool isWord(const string& s) {
-    if ((int)s.length() != WORD_LEN) {
-        return false;
-    }
-    for (int i = 0; i < WORD_LEN; i++) {
-        if (s[i] < 'a' || s[i] > 'z') {
-            return false;
-        }
-    }
-    return true;
-}
-
-// true if s is exactly 5 of g / y / b
-bool isFeedback(const string& s) {
-    if ((int)s.length() != WORD_LEN) {
-        return false;
-    }
-    for (int i = 0; i < WORD_LEN; i++) {
-        if (s[i] != 'g' && s[i] != 'y' && s[i] != 'b') {
-            return false;
-        }
-    }
-    return true;
+// Run the trie search for the current game state. Fills candidates, sets the
+// search time (us) and nodes visited, and returns the match count.
+int searchGame(const Trie& trie, const Game& g, string* candidates,
+               double& timeUs, long long& visited) {
+    Constraints c;
+    buildConstraints(g, c);
+    visited = 0;
+    Clock::time_point start = Clock::now();
+    int count = trie.search(c, candidates, visited);
+    Clock::time_point end = Clock::now();
+    timeUs = microsBetween(start, end);
+    return count;
 }
 
 // Mode 1: you play a real Wordle, the solver suggests guesses
 void interactive(const Trie& trie, int n) {
-    Constraints c;
+    Game g;
+    resetGame(g);
     string* candidates = new string[n];
 
-    cout << "\nFeedback format: 5 letters, g = green, y = yellow, b = grey. Example: bgybb\n";
-
-    for (int turn = 1; turn <= 6; turn++) {
+    while (true) {
+        double timeUs = 0;
         long long visited = 0;
-        Clock::time_point start = Clock::now();
-        int count = trie.search(c, candidates, visited);
-        Clock::time_point end = Clock::now();
+        int count = searchGame(trie, g, candidates, timeUs, visited);
 
-        cout << "\n--- Turn " << turn << " ---\n";
-        cout << "Words left: " << count << "  (trie search: " << microsBetween(start, end)
+        clearScreen();
+        cout << "Interactive solve  (feedback: g = green, y = yellow, b = grey)\n\n";
+        drawBoard(g);
+        cout << "\n";
+        drawKeyboard(g);
+        cout << "\n--- Turn " << (g.turns + 1) << " ---\n";
+        cout << "Words left: " << count << "  (trie search: " << timeUs
              << " us, " << visited << " nodes visited)\n";
 
         if (count == 0) {
-            cout << "No words match. Double-check the feedback you typed.\n";
+            cout << "No words match. The feedback was probably mistyped.\n";
+            cout << "Type 'undo' to drop the last turn, or Enter to quit: ";
+            string line;
+            getline(cin, line);
+            if (line == "undo") {
+                undoTurn(g);
+                continue;
+            }
             break;
         }
 
@@ -79,76 +80,115 @@ void interactive(const Trie& trie, int n) {
         string suggestion = bestGuess(candidates, count);
         cout << "Suggested guess: " << suggestion << "\n";
 
+        // read a guess; Enter uses the suggestion, 'undo' drops the last turn
         string guess;
+        bool doUndo = false;
         while (true) {
-            cout << "Word you guessed (Enter = " << suggestion << "): ";
-            getline(cin, guess);
+            cout << "Word you guessed (Enter = " << suggestion << ", or 'undo'): ";
+            if (!getline(cin, guess)) {
+                delete[] candidates;
+                return;
+            }
+            if (guess == "undo") {
+                doUndo = true;
+                break;
+            }
             if (guess == "") {
                 guess = suggestion;
             }
-            if (isWord(guess)) {
+            if (isValidWord(guess)) {
                 break;
             }
             cout << "Type 5 lowercase letters.\n";
+        }
+        if (doUndo) {
+            undoTurn(g);
+            continue;
         }
 
         string feedback;
         while (true) {
             cout << "Feedback: ";
             getline(cin, feedback);
-            if (isFeedback(feedback)) {
+            if (isValidFeedback(feedback)) {
                 break;
             }
             cout << "Type 5 characters, each g, y, or b.\n";
         }
 
+        addTurn(g, guess, feedback);
+
         if (feedback == "ggggg") {
-            cout << "Solved in " << turn << " guesses!\n";
+            clearScreen();
+            cout << "Solved!\n\n";
+            drawBoard(g);
+            cout << "\nSolved in " << g.turns << " guesses!\n";
             break;
         }
-        c.update(guess, feedback);
     }
 
     delete[] candidates;
 }
 
-// Mode 2: the solver plays a random game against itself
+// Mode 2: the solver plays a game against an answer (random or typed)
 void autoPlay(const Trie& trie, const string* words, int n) {
-    string answer = words[rand() % n];
-    Constraints c;
+    cout << "Answer (Enter = random): ";
+    string answer;
+    getline(cin, answer);
+    if (!isValidWord(answer) || !trie.lookup(answer)) {
+        if (answer != "") {
+            cout << "Not a 5-letter dictionary word; picking a random answer.\n";
+        }
+        answer = words[rand() % n];
+    }
+
+    Game g;
+    resetGame(g);
     string* candidates = new string[n];
     double totalTime = 0;
 
-    cout << "\nSecret answer: " << answer << "\n";
-
-    for (int turn = 1; turn <= 20; turn++) {
+    for (int turn = 1; turn <= MAX_TURNS; turn++) {
+        double timeUs = 0;
         long long visited = 0;
-        Clock::time_point start = Clock::now();
-        int count = trie.search(c, candidates, visited);
-        Clock::time_point end = Clock::now();
-        totalTime += microsBetween(start, end);
+        int count = searchGame(trie, g, candidates, timeUs, visited);
+        totalTime += timeUs;
 
         string guess = bestGuess(candidates, count);
         string feedback = getFeedback(guess, answer);
+        addTurn(g, guess, feedback);
 
-        cout << "Turn " << turn << ": " << guess << "  " << feedback
-             << "   (" << count << " words left before guess, "
-             << microsBetween(start, end) << " us)\n";
+        clearScreen();
+        cout << "Auto play  (secret answer: " << answer << ")\n\n";
+        drawBoard(g);
+        cout << "\n";
+        drawKeyboard(g);
+        cout << "\nTurn " << turn << ": " << count << " words left before the guess, "
+             << timeUs << " us\n";
 
         if (feedback == "ggggg") {
             cout << "Solved in " << turn << " guesses. Total search time: "
                  << totalTime << " us\n";
             break;
         }
-        c.update(guess, feedback);
+
+        // short pause so the audience can follow each row
+        this_thread::sleep_for(chrono::milliseconds(600));
     }
 
     delete[] candidates;
 }
 
-// Mode 3: time the trie against brute force on one query
-void compare(const string* words, int n) {
-    cout << "\nDictionary size (Enter = " << n << " real words, bigger adds synthetic words): ";
+// print a value left-padded into a fixed-width column
+void printCol(const string& s, int width) {
+    cout << s;
+    for (int i = (int)s.length(); i < width; i++) {
+        cout << ' ';
+    }
+}
+
+// Mode 3: race the trie against brute force and incremental filter on one query
+void race(const string* words, int n) {
+    cout << "Dictionary size (Enter = " << n << " real words, bigger adds synthetic): ";
     string line;
     getline(cin, line);
     int size = n;
@@ -165,29 +205,29 @@ void compare(const string* words, int n) {
     }
 
     Trie trie;
-    Clock::time_point start = Clock::now();
     for (int i = 0; i < size; i++) {
         trie.insert(dict[i]);
     }
-    Clock::time_point end = Clock::now();
-    cout << "Built trie in " << microsBetween(start, end) / 1000.0 << " ms ("
-         << trie.getNodeCount() << " nodes)\n";
 
-    // one guess against a random answer
+    // one guess against a random answer, same style as the benchmark
     string answer = dict[rand() % size];
     string guess = bestGuess(dict, size);
     string feedback = getFeedback(guess, answer);
     Constraints c;
     c.update(guess, feedback);
-    cout << "Answer: " << answer << "   Guess: " << guess << "   Feedback: " << feedback << "\n";
+    cout << "Answer: " << answer << "   Guess: " << guess << "   Feedback: " << feedback << "\n\n";
 
     string* out1 = new string[size];
     string* out2 = new string[size];
+    string* incremental = new string[size];
+    for (int i = 0; i < size; i++) {
+        incremental[i] = dict[i];
+    }
 
     long long visited = 0;
-    start = Clock::now();
+    Clock::time_point start = Clock::now();
     int trieCount = trie.search(c, out1, visited);
-    end = Clock::now();
+    Clock::time_point end = Clock::now();
     double trieTime = microsBetween(start, end);
 
     start = Clock::now();
@@ -195,24 +235,52 @@ void compare(const string* words, int n) {
     end = Clock::now();
     double bruteTime = microsBetween(start, end);
 
-    cout << "\nMethod        Matches   Time (us)   Work\n";
-    cout << "Trie          " << trieCount << "   " << trieTime << "   "
-         << visited << " nodes visited\n";
-    cout << "Brute force   " << bruteCount << "   " << bruteTime << "   "
-         << size << " words checked\n";
+    // incremental filter has no previous turn here, so it checks the full copy
+    start = Clock::now();
+    int incCount = incrementalFilter(incremental, size, c);
+    end = Clock::now();
+    double incTime = microsBetween(start, end);
+
+    // aligned table
+    printCol("Method", 14); printCol("Matches", 10); printCol("Time (us)", 14); cout << "Work\n";
+    printCol("Trie", 14); printCol(to_string(trieCount), 10);
+        printCol(to_string(trieTime), 14); cout << visited << " nodes visited\n";
+    printCol("Brute force", 14); printCol(to_string(bruteCount), 10);
+        printCol(to_string(bruteTime), 14); cout << size << " words checked\n";
+    printCol("Incremental", 14); printCol(to_string(incCount), 10);
+        printCol(to_string(incTime), 14); cout << size << " words checked\n";
+
+    // bar chart of the three times (longer bar = slower)
+    double maxTime = trieTime;
+    if (bruteTime > maxTime) maxTime = bruteTime;
+    if (incTime > maxTime) maxTime = incTime;
+    cout << "\n";
+    drawBar("Trie       ", trieTime, maxTime, 40);
+    drawBar("Brute force", bruteTime, maxTime, 40);
+    drawBar("Incremental", incTime, maxTime, 40);
+
     if (trieTime > 0) {
-        cout << "Trie was " << bruteTime / trieTime << "x faster\n";
+        cout << "\nTrie was " << bruteTime / trieTime << "x faster than brute force, "
+             << incTime / trieTime << "x faster than incremental.\n";
     }
 
     delete[] out1;
     delete[] out2;
+    delete[] incremental;
     delete[] dict;
 }
 
 int main(int argc, char* argv[]) {
     string filename = "data/words.txt";
-    if (argc > 1) {
-        filename = argv[1];
+
+    // Parse argv: --no-color turns off ANSI colors; any other arg is a word-list path.
+    for (int i = 1; i < argc; i++) {
+        string arg = argv[i];
+        if (arg == "--no-color") {
+            setColorEnabled(false);
+        } else {
+            filename = arg;
+        }
     }
 
     int n = 0;
@@ -232,8 +300,8 @@ int main(int argc, char* argv[]) {
 
     while (true) {
         cout << "\n1) Interactive (solve a real Wordle)\n";
-        cout << "2) Auto play a random game\n";
-        cout << "3) Compare trie vs brute force\n";
+        cout << "2) Auto play a game\n";
+        cout << "3) Race trie vs brute force vs incremental\n";
         cout << "q) Quit\n";
         cout << "Choice: ";
 
@@ -246,7 +314,7 @@ int main(int argc, char* argv[]) {
         } else if (choice == "2") {
             autoPlay(trie, words, n);
         } else if (choice == "3") {
-            compare(words, n);
+            race(words, n);
         }
     }
 
